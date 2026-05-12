@@ -1,0 +1,917 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
+#include <vector>
+#include <cctype>
+
+using namespace std;
+
+//functions required:
+// set current user
+// view home
+// like a post
+// view liked list
+// comment on a post
+// view a post
+// share memory
+// view profile
+// view friend list
+
+
+
+// --- Utility Classes ---
+
+// Date class
+class Date {
+private:
+    int day, month, year;
+
+
+public:
+    static Date currentDate;
+    Date(int d = 0, int m = 0, int y = 0) : day(d), month(m), year(y) {}
+
+    static void setCurrentDate(int d, int m, int y) {
+        currentDate.day = d;
+        currentDate.month = m;
+        currentDate.year = y;
+    }
+
+    static Date getCurrentDate() { return currentDate; }
+
+    // this checks if the posts are recent ie. posted in the last 24 hours 
+
+
+    bool isWithin24Hours() const {
+        // convert both dates into "total days" for easy comparison
+        int d1 = day + month * 30 + year * 365;
+        int d2 = currentDate.day + currentDate.month * 30 + currentDate.year * 365;
+
+        int diff = d2 - d1;
+
+        return (diff >= 0 && diff <= 1);
+    }
+
+    void setDate(int d, int m, int y) {
+        day = d;
+        month = m;
+        year = y;
+    }
+
+    void print() const { cout << day << "/" << month << "/" << year; }
+
+    int getDay() const { return day; }
+    int getMonth() const { return month; }
+    int getYear() const { return year; }
+};
+//i hard coded the given date here
+Date Date::currentDate(15, 11, 2017);
+
+// Activity class
+class Activity {
+private:
+    int type;
+    string value;
+
+public:
+    Activity(int t = 0, string v = "") : type(t), value(v) {}
+    // get t and v from the user and then output the feeling/thinking etc accordingly
+    void print() const {
+        if (type == 1) cout << " is feeling " << value;
+        else if (type == 2) cout << " is thinking about " << value;
+        else if (type == 3) cout << " is making " << value;
+        else if (type == 4) cout << " is celebrating " << value;
+    }
+
+    int getType() const { return type; }
+    string getValue() const { return value; }
+};
+
+// Forward declarations
+class Object;
+class User;
+class Page;
+class Comment;
+class Post;
+
+// Base Object class which will be used for posts comments users and pages
+class Object {
+protected:
+    string id;
+
+public:
+    Object(string id = "") : id(id) {}
+    virtual ~Object() {}
+
+    string getId() const { return id; }
+    virtual string getName() const = 0;
+    virtual void printName() const = 0;
+};
+
+
+// Comment class
+class Comment {
+private:
+    string id;
+    string postId;
+    Object* author;
+    string text;
+
+public:
+    Comment() : author(nullptr) {}
+
+    void setValues(string id, string postId, Object* auth, string text) {
+        this->id = id;
+        this->postId = postId;
+        this->author = auth;
+        this->text = text;
+    }
+
+    void print() const {
+        if (author) {
+            author->printName();
+            cout << " wrote: \"" << text << "\"" << endl;
+        }
+    }
+
+    string getText() const { return text; }
+    Object* getAuthor() const { return author; }
+};
+
+
+// Post class
+class Post {
+private:
+    string id;
+    string text;
+    Date date;
+    Object* author;
+    Activity* activity;
+    Object** likedBy;
+    Comment** comments;
+    int likeCount;
+    int commentCount;
+    bool isMemory;
+    Post* originalPost;
+    string memoryText;
+
+public:
+    Post(string id = "", string txt = "", int d = 0, int m = 0, int y = 0)
+        : id(id), text(txt), date(d, m, y), author(nullptr), activity(nullptr),
+        likeCount(0), commentCount(0), isMemory(false), originalPost(nullptr) {
+        likedBy = new Object * [10];
+        comments = new Comment * [10];
+        for (int i = 0; i < 10; i++) {
+            likedBy[i] = nullptr;
+            comments[i] = nullptr;
+        }
+    }
+
+    ~Post() {
+        delete[] likedBy;
+        for (int i = 0; i < commentCount; i++) delete comments[i];
+        delete[] comments;
+        delete activity;
+    }
+
+    string getId() const { return id; }
+    string getText() const { return text; }
+    Date getDate() const { return date; }
+    int getLikeCount() const { return likeCount; }
+
+    void setAuthor(Object* auth) { author = auth; }
+    void setActivity(int type, string value) { activity = new Activity(type, value); }
+
+    void addLike(Object* obj) {
+        if (likeCount < 10 && obj) {
+            likedBy[likeCount++] = obj;
+        }
+    }
+
+    void addComment(Comment* c) {
+        if (commentCount < 10 && c) {
+            comments[commentCount++] = c;
+        }
+    }
+
+    void setAsMemory(Post* original, string memoryText) {
+        isMemory = true;
+        originalPost = original;
+        this->memoryText = memoryText;
+    }
+
+    void displayPost() const {
+        if (isMemory && originalPost) {
+            cout << "~~~ " << author->getName() << " shared a memory ~~~" << endl;
+            cout << "\"" << memoryText << "\"" << endl;
+            cout << "(" << Date::getCurrentDate().getYear() - originalPost->date.getYear() << " Years Ago)" << endl;
+            originalPost->displayPost();
+            return;
+        }
+
+        if (activity) {
+            author->printName();
+            activity->print();
+            cout << endl;
+        }
+
+        cout << "\"" << text << "\"";
+        if (date.getDay() > 0) {
+            cout << " ... (";
+            date.print();
+            cout << ")";
+        }
+        cout << endl;
+
+        for (int i = 0; i < commentCount; i++) {
+            cout << "    ";
+            comments[i]->print();
+        }
+    }
+
+    void displayLikedBy() const {
+        cout << "Post Liked By:" << endl;
+        for (int i = 0; i < likeCount; i++) {
+            if (likedBy[i]) {
+                cout << likedBy[i]->getId() << " -- " << likedBy[i]->getName() << endl;
+            }
+        }
+    }
+
+    bool isRecent() const { return date.isWithin24Hours(); }
+};
+
+
+// Page class
+class Page : public Object {
+    static const int MAX = 100;
+private:
+    string title;
+    Post** timeline;
+    int postCount;
+
+public:
+    Page(string id = "", string title = "") : Object(id), title(title), postCount(0) {
+        timeline = new Post * [MAX];
+        for (int i = 0; i < MAX; i++) timeline[i] = nullptr;
+    }
+
+
+    ~Page() {
+        delete[] timeline;
+    }
+    string getName() const override { return title; }
+    void printName() const override { cout << title; }
+
+    void addPost(Post* post) {
+        if (postCount < 100 && post) {
+            timeline[postCount++] = post;
+        }
+    }
+
+    Post** getTimeline() const { return timeline; }
+    int getPostCount() const { return postCount; }
+};
+class User : public Object {
+    string name;
+    User** friends;
+    Page** likedPages;
+    Post** timeline;
+    int friendCount, pageCount, postCount;
+    static const int MAX = 100;
+public:
+    User(string id = "", string n = "") : Object(id), name(n), friendCount(0), pageCount(0), postCount(0) {
+        friends = new User * [MAX];
+        likedPages = new Page * [MAX];
+        timeline = new Post * [MAX];
+        for (int i = 0; i < MAX; i++) { friends[i] = nullptr; likedPages[i] = nullptr; timeline[i] = nullptr; }
+    }
+
+    ~User() {
+        delete[] friends;
+        delete[] likedPages;
+        delete[] timeline;
+    }
+
+    string getName()const override { return name; }
+    void printName() const override { cout << name; }
+
+    //add functions
+    void addFriend(User* u) { if (friendCount < MAX && u) friends[friendCount++] = u; }
+    void likePage(Page* p) { if (pageCount < MAX && p) likedPages[pageCount++] = p; }
+    void addPost(Post* p) { if (postCount < MAX) timeline[postCount++] = p; }
+    User** getFriends() { return friends; }
+
+    //getters
+    int getFriendCount() const { return friendCount; }
+    Page** getLikedPages() const { return likedPages; }
+    int getPageCount() const { return pageCount; }
+    Post** getTimeline() const { return timeline; }
+    int getPostCount() const { return postCount; }
+
+    //view functions
+    void viewFriendList() const {
+        cout << "\n--------------------------------------------------------------------------------\n";
+        cout << name << " -- Friend List\n";
+        for (int i = 0; i < friendCount; i++)
+            cout << friends[i]->getId() << " - " << friends[i]->getName() << endl;
+        cout << "--------------------------------------------------------------------------------\n";
+    }
+
+    void viewLikedPages() const {
+        cout << "\n--------------------------------------------------------------------------------\n";
+        cout << name << " -- Liked Pages\n";
+        for (int i = 0; i < pageCount; i++)
+            cout << likedPages[i]->getId() << " -- " << likedPages[i]->getName() << endl;
+        cout << "--------------------------------------------------------------------------------\n";
+    }
+
+    void viewHome() const {
+        cout << "\n--------------------------------------------------------------------------------\n";
+        cout << name << " -- Home Page\n";
+        cout << "--------------------------------------------------------------------------------\n";
+        //friend posts
+        for (int i = 0; i < friendCount; i++) {
+            if (friends[i]) { //added this line here which makes sure that friends[i] is never nullptr
+                for (int j = 0; j < friends[i]->getPostCount(); j++) {
+                    Post* post = friends[i]->getTimeline()[j]; // made this change here
+
+                    //using  post as  "friends[i]->getTimeline()[j]" is redundant and 
+                    // also causes a problem when friends[i]->getTimeline()[j] is nullptr,
+                    // so I have stored it in a variable and then checked if it's nullptr before accessing its members
+
+
+                    if (post && post->getDate().isWithin24Hours()) {
+                        cout << "--- " << friends[i]->getName()
+                            << " shared \"" << post->getText() << "\"" << endl;
+
+                        post->displayPost();
+                        cout << endl;
+                    }
+                }
+            }
+        }
+        //page posts
+        for (int i = 0; i < pageCount; i++) {
+            if (likedPages[i]) { //added this line here which makes sure that likedPages[i] is never nullptr
+
+                Post** posts = likedPages[i]->getTimeline();
+
+                for (int j = 0; j < likedPages[i]->getPostCount(); j++) {
+                    Post* post = posts[j];
+
+                    if (post && post->getDate().isWithin24Hours()) {
+                        post->displayPost();
+                        cout << endl;
+                    }
+                }
+            }
+            cout << "--------------------------------------------------------------------------------\n";
+        }
+    }
+
+    void viewTimeline() const {
+        cout << "\n--------------------------------------------------------------------------------\n";
+        cout << name << " -- Time Line\n";
+        cout << "--------------------------------------------------------------------------------\n";
+        for (int i = postCount - 1; i >= 0; i--) {
+            if (timeline[i]) {
+                timeline[i]->displayPost();
+                cout << endl;
+            }
+        }
+        cout << "--------------------------------------------------------------------------------\n";
+    }
+};
+
+// SocialNetworkApp class to manage everything
+
+class SocialNetworkApp {
+    User** allUsers;
+    Page** allPages;
+    Post** allPosts;
+    int totalUsers, totalPages, totalPosts;
+    User* currentUser;
+    static const int MAX = 100;
+
+    // small helpers used by LoadData
+    static bool isId(const string& tok, char prefix) {
+        return tok.size() > 1 && tok[0] == prefix && isdigit(static_cast<unsigned char>(tok[1]));
+    }
+
+    static vector<string> tokenizeFile(ifstream& f) {
+        vector<string> toks;
+        string tok;
+        while (f >> tok) toks.push_back(tok);
+        return toks;
+    }
+
+public:
+    SocialNetworkApp() : allUsers(nullptr), allPages(nullptr), allPosts(nullptr),
+        totalUsers(0), totalPages(0), totalPosts(0), currentUser(nullptr) {
+    }
+
+    ~SocialNetworkApp() {
+        for (int i = 0; i < totalUsers; i++) delete allUsers[i];
+        delete[] allUsers;
+        for (int i = 0; i < totalPages; i++) delete allPages[i];
+        delete[] allPages;
+        for (int i = 0; i < totalPosts; i++) delete allPosts[i];
+        delete[] allPosts;
+    }
+
+    User* GetUserByID(string id) {
+        for (int i = 0; i < totalUsers; i++)
+            if (allUsers[i]->getId() == id) return allUsers[i];
+        return nullptr;
+    }
+
+    Page* GetPageByID(string id) {
+        for (int i = 0; i < totalPages; i++)
+            if (allPages[i]->getId() == id) return allPages[i];
+        return nullptr;
+    }
+
+    Object* GetObjectByID(string id) {
+        if (id.empty()) return nullptr;
+        if (id[0] == 'u') return GetUserByID(id);
+        if (id[0] == 'p') return GetPageByID(id);
+        return nullptr;
+    }
+
+    Post* GetPostByID(string id) {
+        for (int i = 0; i < totalPosts; i++)
+            if (allPosts[i]->getId() == id) return allPosts[i];
+        return nullptr;
+    }
+
+    void LoadData() {
+        // --- Pages ---
+        ifstream fPages("Pages.txt");
+        if (!fPages) { cout << "Error: Pages.txt not found!\n"; return; }
+        vector<string> ptoks = tokenizeFile(fPages);
+        fPages.close();
+        if (ptoks.empty()) { totalPages = 0; allPages = nullptr; }
+        else {
+            int idx = 0;
+            totalPages = stoi(ptoks[idx++]);
+            allPages = new Page * [totalPages];
+            for (int i = 0; i < totalPages; i++) {
+                if (idx >= (int)ptoks.size()) break;
+                string pid = ptoks[idx++];
+                // title runs until next token that looks like a page id (pN) or until we've filled pages-1
+                string title;
+                while (idx < (int)ptoks.size()) {
+                    // if next token looks like a page id and we still need pages, break
+                    if (isId(ptoks[idx], 'p') && (int)allPages != 0 && (int)ptoks.size() > 0) {
+                        break;
+                    }
+                    // also break if we are at the start of next record when i < totalPages-1 and next token is 'p' followed by digit
+                    // append token to title
+                    if (!title.empty()) title += " ";
+                    title += ptoks[idx++];
+                    // stop if we've consumed all tokens
+                    if (idx >= (int)ptoks.size()) break;
+                }
+                allPages[i] = new Page(pid, title);
+            }
+        }
+
+        // --- Users (first pass: create users) ---
+        ifstream fUsers("Users.txt");
+        if (!fUsers) { cout << "Error: Users.txt not found!\n"; return; }
+        vector<string> utoks = tokenizeFile(fUsers);
+        fUsers.close();
+        if (utoks.empty()) { totalUsers = 0; allUsers = nullptr; }
+        else {
+            int idx = 0;
+            totalUsers = stoi(utoks[idx++]);
+            allUsers = new User * [totalUsers];
+            for (int i = 0; i < totalUsers; i++) {
+                if (idx >= (int)utoks.size()) break;
+                string uid = utoks[idx++];
+                // name continues until next token that looks like a user id (friend start)
+                string name;
+                while (idx < (int)utoks.size() && !(isId(utoks[idx], 'u') && utoks[idx] != "-1")) {
+                    // This handles cases where the name can contain multiple tokens.
+                    // Stop when we reach a token that looks like a user id (lowercase 'u' + digit),
+                    // or '-1' (shouldn't happen immediately).
+                    // But to avoid consuming the friends list accidentally, we check for id pattern.
+                    if (!name.empty()) name += " ";
+                    name += utoks[idx++];
+                    // extra safety: if next token is a friend id, break
+                    if (idx < (int)utoks.size() && isId(utoks[idx], 'u')) break;
+                }
+                // If name parsed empty (rare), fallback to a placeholder
+                if (name.empty()) name = uid;
+                allUsers[i] = new User(uid, name);
+                // Skip the friends/liked pages lists for now (we'll parse in second pass)
+                // We must advance idx to skip friends and liked pages tokens so subsequent uid reads align.
+                // Find the start of token stream for friends (it should start with 'u' or be '-1')
+                // We already might be at friend start; ensure we skip friends until first -1, then skip pages until next -1.
+                // If current token is a friend id or '-1', process skipping:
+                // NOTE: some lines in the provided file don't include line breaks; we parse based on token structure.
+                // Skip friends
+                while (idx < (int)utoks.size() && utoks[idx] != "-1") {
+                    // If token looks like a uid or some stray, consume it
+                    idx++;
+                }
+                if (idx < (int)utoks.size() && utoks[idx] == "-1") idx++; // consume separator
+                // Skip liked pages until next -1
+                while (idx < (int)utoks.size() && utoks[idx] != "-1") idx++;
+                if (idx < (int)utoks.size() && utoks[idx] == "-1") idx++; // consume final separator
+            }
+        }
+
+        // --- Posts ---
+        ifstream fPosts("Posts.txt");
+        if (!fPosts) { cout << "Error: Posts.txt not found!\n"; return; }
+        vector<string> postoks = tokenizeFile(fPosts);
+        fPosts.close();
+        if (postoks.empty()) { totalPosts = 0; allPosts = nullptr; }
+        else {
+            int idx = 0;
+            totalPosts = stoi(postoks[idx++]);
+            allPosts = new Post * [totalPosts];
+            // parse each post sequentially
+            for (int p = 0; p < totalPosts; p++) {
+                if (idx >= (int)postoks.size()) { totalPosts = p; break; }
+                int type = stoi(postoks[idx++]);              // type
+                string pid = postoks[idx++];                  // post id
+                int d = stoi(postoks[idx++]);                 // day
+                int m = stoi(postoks[idx++]);                 // month
+                int y = stoi(postoks[idx++]);                 // year
+
+                // find owner index: first token starting with 'u' or 'p' (lowercase) after current idx
+                int ownerIdx = idx;
+                while (ownerIdx < (int)postoks.size() && !(isId(postoks[ownerIdx], 'u') || isId(postoks[ownerIdx], 'p'))) ownerIdx++;
+                if (ownerIdx >= (int)postoks.size()) {
+                    // malformed -- break
+                    ownerIdx = idx;
+                }
+
+                // tokens between idx and ownerIdx are text + possibly activity info
+                vector<string> between;
+                for (int t = idx; t < ownerIdx; ++t) between.push_back(postoks[t]);
+
+                // determine activity by searching rightmost token that equals "1","2","3","4"
+                bool hasActivity = false;
+                int atype = 0;
+                string aval;
+                int actPos = -1;
+                for (int t = (int)between.size() - 1; t >= 0; --t) {
+                    if (between[t] == "1" || between[t] == "2" || between[t] == "3" || between[t] == "4") {
+                        actPos = t;
+                        break;
+                    }
+                }
+                string text;
+                if (actPos != -1 && type > 1) {
+                    hasActivity = true;
+                    atype = stoi(between[actPos]);
+                    // activity value is remainder tokens after actPos
+                    stringstream ss;
+                    for (size_t k = actPos + 1; k < between.size(); ++k) {
+                        if (k > actPos + 1) ss << " ";
+                        ss << between[k];
+                    }
+                    aval = ss.str();
+                    // text is tokens before actPos
+                    stringstream st;
+                    for (int k = 0; k < actPos; ++k) {
+                        if (k) st << " ";
+                        st << between[k];
+                    }
+                    text = st.str();
+                }
+                else {
+                    // no activity info inside between -> all between tokens are text
+                    stringstream st;
+                    for (size_t k = 0; k < between.size(); ++k) {
+                        if (k) st << " ";
+                        st << between[k];
+                    }
+                    text = st.str();
+                }
+
+                // owner id
+                string ownerId = (ownerIdx < (int)postoks.size()) ? postoks[ownerIdx] : string();
+
+                // collect likers after owner until "-1"
+                vector<string> likers;
+                int li = ownerIdx + 1;
+                while (li < (int)postoks.size() && postoks[li] != "-1") {
+                    likers.push_back(postoks[li]);
+                    li++;
+                }
+                // set idx to token after "-1"
+                idx = (li < (int)postoks.size()) ? li + 1 : li;
+
+                // create post object
+                allPosts[p] = new Post(pid, text, d, m, y);
+                if (hasActivity) allPosts[p]->setActivity(atype, aval);
+
+                // link author (user or page)
+                Object* auth = GetObjectByID(ownerId);
+                if (auth) {
+                    allPosts[p]->setAuthor(auth);
+                    if (!ownerId.empty() && ownerId[0] == 'u') {
+                        User* u = GetUserByID(ownerId);
+                        if (u) u->addPost(allPosts[p]);
+                    }
+                    else if (!ownerId.empty() && ownerId[0] == 'p') {
+                        Page* pg = GetPageByID(ownerId);
+                        if (pg) pg->addPost(allPosts[p]);
+                    }
+                }
+
+                // likes
+                for (auto& lk : likers) {
+                    Object* obj = GetObjectByID(lk);
+                    if (obj) allPosts[p]->addLike(obj);
+                }
+            }
+        }
+
+        // --- Comments ---
+        ifstream fComm("Comments.txt");
+        if (fComm) {
+            vector<string> ctoks = tokenizeFile(fComm);
+            fComm.close();
+            if (!ctoks.empty()) {
+                int idx = 0;
+                int ccount = stoi(ctoks[idx++]);
+                int commentParsed = 0;
+                while (commentParsed < ccount && idx < (int)ctoks.size()) {
+                    string cid = ctoks[idx++];                  // cN
+                    if (idx >= (int)ctoks.size()) break;
+                    string pid = ctoks[idx++];                  // post id
+                    if (idx >= (int)ctoks.size()) break;
+                    string uid = ctoks[idx++];                  // author id
+                    // gather text until next token that looks like a comment id 'cN' or until we've parsed all comments
+                    string text;
+                    int startText = idx;
+                    // If this is the last comment, take all remaining tokens
+                    if (commentParsed == ccount - 1) {
+                        stringstream ss;
+                        for (; idx < (int)ctoks.size(); ++idx) {
+                            if (idx > startText) ss << " ";
+                            ss << ctoks[idx];
+                        }
+                        text = ss.str();
+                    }
+                    else {
+                        // find next index where token looks like a comment id (starts with 'c' followed by digit)
+                        int nextIdx = idx;
+                        while (nextIdx < (int)ctoks.size() && !(isId(ctoks[nextIdx], 'c'))) nextIdx++;
+                        stringstream ss;
+                        for (int t = idx; t < nextIdx; ++t) {
+                            if (t > idx) ss << " ";
+                            ss << ctoks[t];
+                        }
+                        text = ss.str();
+                        idx = nextIdx;
+                    }
+                    // trim leading space
+                    if (!text.empty() && text[0] == ' ') text = text.substr(1);
+
+                    Comment* c = new Comment();
+                    c->setValues(cid, pid, GetObjectByID(uid), text);
+                    Post* post = GetPostByID(pid);
+                    if (post) post->addComment(c);
+
+                    commentParsed++;
+                }
+            }
+        }
+
+        // --- Users second pass: link friends and liked pages ---
+        ifstream fUsers2("Users.txt");
+        if (!fUsers2) { cout << "Error reading Users.txt (second pass)\n"; return; }
+        vector<string> ut2 = tokenizeFile(fUsers2);
+        fUsers2.close();
+        if (!ut2.empty()) {
+            int idx = 0;
+            int count = stoi(ut2[idx++]);
+            for (int i = 0; i < count && idx < (int)ut2.size(); ++i) {
+                string uid = ut2[idx++]; // user id
+                // name - skip tokens until a token that looks like friend id or '-1'
+                while (idx < (int)ut2.size() && !isId(ut2[idx], 'u') && ut2[idx] != "-1") idx++;
+                // friends until -1
+                while (idx < (int)ut2.size() && ut2[idx] != "-1") {
+                    string fr = ut2[idx++];
+                    if (isId(fr, 'u')) {
+                        User* fu = GetUserByID(fr);
+                        if (fu) {
+                            User* owner = GetUserByID(uid);
+                            if (owner) owner->addFriend(fu);
+                        }
+                    }
+                }
+                if (idx < (int)ut2.size() && ut2[idx] == "-1") idx++; // consume separator
+                // liked pages until next -1
+                while (idx < (int)ut2.size() && ut2[idx] != "-1") {
+                    string pid = ut2[idx++];
+                    if (isId(pid, 'p')) {
+                        Page* pg = GetPageByID(pid);
+                        if (pg) {
+                            User* owner = GetUserByID(uid);
+                            if (owner) owner->likePage(pg);
+                        }
+                    }
+                }
+                if (idx < (int)ut2.size() && ut2[idx] == "-1") idx++; // consume end separator
+            }
+        }
+    }
+
+private:
+    // helper to read a line from stdin
+    string ReadLine(const string& prompt) {
+        cout << prompt;
+        string s;
+        getline(cin, s);
+        return s;
+    }
+
+    // Add a post to system arrays (realloc-like)
+    void AddPostToSystem(Post* p) {
+        Post** temp = new Post * [totalPosts + 1];
+        for (int i = 0; i < totalPosts; i++) temp[i] = allPosts[i];
+        temp[totalPosts] = p;
+        delete[] allPosts;
+        allPosts = temp;
+        totalPosts++;
+    }
+
+    void SetCurrentUser() {
+        string uid = ReadLine("Enter User ID (e.g. u7): ");
+        if (uid.empty()) { cout << "No ID entered.\n"; return; }
+        User* u = GetUserByID(uid);
+        if (u) {
+            currentUser = u;
+            cout << currentUser->getName() << " successfully set as Current User\n";
+        }
+        else {
+            cout << "User not found: " << uid << endl;
+        }
+    }
+
+    void SetSystemDate() {
+        string line = ReadLine("Enter date (D M Y): ");
+        stringstream ss(line);
+        int d, m, y;
+        if (!(ss >> d >> m >> y)) { cout << "Invalid date format.\n"; return; }
+        Date::currentDate.setDate(d, m, y);
+        cout << "System Date: " << d << "/" << m << "/" << y << endl;
+    }
+
+    void ViewHome() {
+        if (!currentUser) { cout << "No current user set.\n"; return; }
+        currentUser->viewHome();
+    }
+
+    void LikePost() {
+        if (!currentUser) { cout << "No current user set.\n"; return; }
+        string pid = ReadLine("Enter Post ID to like: ");
+        Post* p = GetPostByID(pid);
+        if (!p) { cout << "Post not found: " << pid << endl; return; }
+        p->addLike(currentUser);
+        cout << "Post liked successfully!\n";
+    }
+
+    void ViewLikedList() {
+        string pid = ReadLine("Enter Post ID to view liked list: ");
+        Post* p = GetPostByID(pid);
+        if (!p) { cout << "Post not found: " << pid << endl; return; }
+        cout << "\n--------------------------------------------------------------------------------\n";
+        p->displayLikedBy();
+        cout << "--------------------------------------------------------------------------------\n";
+    }
+
+    void PostComment() {
+        if (!currentUser) { cout << "No current user set.\n"; return; }
+        string pid = ReadLine("Enter Post ID to comment on: ");
+        Post* p = GetPostByID(pid);
+        if (!p) { cout << "Post not found: " << pid << endl; return; }
+        string text = ReadLine("Enter comment text: ");
+        Comment* c = new Comment();
+        c->setValues("", pid, currentUser, text);
+        p->addComment(c);
+        cout << "Comment added successfully!\n";
+    }
+
+    void ViewPost() {
+        string pid = ReadLine("Enter Post ID to view: ");
+        Post* p = GetPostByID(pid);
+        if (!p) { cout << "Post not found: " << pid << endl; return; }
+        cout << "\n--------------------------------------------------------------------------------\n";
+        p->displayPost();
+        cout << "--------------------------------------------------------------------------------\n";
+    }
+
+    void ShareMemory() {
+        if (!currentUser) { cout << "No current user set.\n"; return; }
+        string pid = ReadLine("Enter Post ID to create memory from: ");
+        Post* orig = GetPostByID(pid);
+        if (!orig) { cout << "Original post not found: " << pid << endl; return; }
+        string memText = ReadLine("Enter memory text: ");
+        // create new post as memory
+        string newId = "mem" + to_string(totalPosts + 1);
+        Date cd = Date::getCurrentDate();
+        Post* mem = new Post(newId, "", cd.getDay(), cd.getMonth(), cd.getYear());
+        mem->setAuthor(currentUser);
+        mem->setAsMemory(orig, memText);
+        // add to user's timeline and system posts
+        currentUser->addPost(mem);
+        AddPostToSystem(mem);
+        cout << "Memory shared successfully!\n";
+    }
+
+    void ViewProfile() {
+        if (!currentUser) { cout << "No current user set.\n"; return; }
+        currentUser->viewTimeline();
+    }
+
+    void ViewFriendList() {
+        string uid = ReadLine("Enter User ID to view friend list (or press enter for current user): ");
+        if (uid.empty()) {
+            if (!currentUser) { cout << "No current user set.\n"; return; }
+            currentUser->viewFriendList();
+            return;
+        }
+        User* u = GetUserByID(uid);
+        if (!u) { cout << "User not found: " << uid << endl; return; }
+        u->viewFriendList();
+    }
+
+    void ViewPage() {
+        string pid = ReadLine("Enter Page ID to view (e.g. p1): ");
+        Page* page = GetPageByID(pid);
+        if (!page) { cout << "Page not found: " << pid << endl; return; }
+        cout << "\n--------------------------------------------------------------------------------\n";
+        cout << page->getName() << endl;
+        cout << "--------------------------------------------------------------------------------\n";
+        for (int i = page->getPostCount() - 1; i >= 0; i--) {
+            if (page->getTimeline()[i]) {
+                page->getTimeline()[i]->displayPost();
+                cout << endl;
+            }
+        }
+        cout << "--------------------------------------------------------------------------------\n";
+    }
+
+    void ShowMenu() {
+        cout << "\n================ Social Network Menu ================\n";
+        cout << "1. Set current System Date\n";
+        cout << "2. Set Current User\n";
+        cout << "3. View Home\n";
+        cout << "4. Like a Post\n";
+        cout << "5. View Liked List for a Post\n";
+        cout << "6. Post a Comment\n";
+        cout << "7. View a Post\n";
+        cout << "8. Share a Memory\n";
+        cout << "9. View My Profile (Timeline)\n";
+        cout << "10. View Friend List\n";
+        cout << "11. View Page\n";
+        cout << "0. Exit\n";
+        cout << "=====================================================\n";
+    }
+
+public:
+    void Run() {
+        LoadData();
+
+        while (true) {
+            ShowMenu();
+            string choiceStr = ReadLine("Choose option: ");
+            if (choiceStr.empty()) continue;
+            int choice = -1;
+            try { choice = stoi(choiceStr); }
+            catch (...) { cout << "Invalid choice\n"; continue; }
+
+            switch (choice) {
+            case 0: return;
+            case 1: SetSystemDate(); break;
+            case 2: SetCurrentUser(); break;
+            case 3: ViewHome(); break;
+            case 4: LikePost(); break;
+            case 5: ViewLikedList(); break;
+            case 6: PostComment(); break;
+            case 7: ViewPost(); break;
+            case 8: ShareMemory(); break;
+            case 9: ViewProfile(); break;
+            case 10: ViewFriendList(); break;
+            case 11: ViewPage(); break;
+            default: cout << "Unknown option\n"; break;
+            }
+        }
+    }
+};
+
+int main() {
+    SocialNetworkApp app;
+    app.Run();
+    return 0;
+}
